@@ -138,9 +138,13 @@ Motor rightMotor;
 Servo servo; // servo object
 byte servo_pin = A2;
 
-UltrasonicSensor sensor(A1, A0); 
+byte trigger_pin = A1;
+byte echo_pin = A0;
+UltrasonicSensor sensor(trigger_pin, echo_pin); 
 // object for the ultrasonic sensor, with a trigger pin of A1
 // and an echo pin of A0
+
+byte speed = 50;
 
 void setup()
 {
@@ -149,7 +153,6 @@ void setup()
   Serial.println("hi");
   leftMotor = Motor(H2A,H1A,H12EN);
   rightMotor = Motor(H3A,H4A,H34EN);
-  byte speed = 100;
   leftMotor.setSpeed(speed);
   rightMotor.setSpeed(speed);
   Serial.println("cat");
@@ -162,6 +165,7 @@ void setup()
 
   leftMotor.run(Motor::MotorForward);
   rightMotor.run(Motor::MotorForward);  
+  // ^ start off by moving forward
 }
 
 
@@ -242,12 +246,14 @@ if(auto_mode){// then we are in auto_mode
   servo.write(90);
   double measurement = sensor.measureInches();
     Serial.println(measurement);
-  if(measurement <= 30)
+  if(measurement <= 5)
   {
+	speed = 10;
     leftMotor.run(Motor::MotorReverse);
     rightMotor.run(Motor::MotorForward);
-    delay(1000);  
+    while(sensor.measureInches() < 10); 
     leftMotor.run(Motor::MotorForward);
-    rightMotor.run(Motor::MotorForward);  
+    rightMotor.run(Motor::MotorForward);
+    speed = 50; 
   }
 }
