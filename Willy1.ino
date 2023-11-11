@@ -46,17 +46,17 @@ public:
      case MotorStop:
        digitalWrite(_pin1, LOW);
        digitalWrite(_pin2, LOW);
-       digitalWrite(_enable, LOW);
+       analogWrite(_enable, LOW);
        break;
      case MotorForward:
        digitalWrite(_pin1, HIGH);
        digitalWrite(_pin2, LOW);
-       digitalWrite(_enable, _speed);
+       analogWrite(_enable, _speed);
        break;
      case MotorReverse:
        digitalWrite(_pin1, LOW);
        digitalWrite(_pin2, HIGH);
-       digitalWrite(_enable, _speed);
+       analogWrite(_enable, _speed);
     } // switch dir
   } // end run
   
@@ -144,24 +144,50 @@ UltrasonicSensor sensor(trigger_pin, echo_pin);
 // object for the ultrasonic sensor, with a trigger pin of A1
 // and an echo pin of A0
 
-byte speed = 50;
+byte speed = 95;
+
+enum AutoState { // states when in auto mode
+  MoveForward,
+  TurnLeft,
+  TurnRight,
+  CorrectLeft,
+  CorrectRight,
+  Reverse,
+  Stop
+  }; // enum AutoState
+
+AutoState state = MoveForward; // move forward at start
+
+void turnLeft();
+void turnRight();
+void correctLeft();
+void correctRight();
+// ^ functions to call when in corresponding state
 
 void setup()
 {
   Serial.begin(9600);
   
-  Serial.println("hi");
   leftMotor = Motor(H2A,H1A,H12EN);
   rightMotor = Motor(H3A,H4A,H34EN);
   leftMotor.setSpeed(speed);
   rightMotor.setSpeed(speed);
-  Serial.println("cat");
 
   // set up servo (pin, min, and max)
   // min and max are pulse width values
-  // used to correctly move the motor to
-  // position 0 and 180.
-  servo.attach(servo_pin, 500, 2500);  
+  // used to correctly move the servo between
+  // positions 0 and 180.
+  servo.attach(servo_pin, 500, 2500);
+
+  servo.write(90); // start with head straight forward
+
+  // set up timer 2 for 9984 microseconds (~0.01 s)
+  TCNT2 = 0x64;
+  TCCR2A = 0x00; // set to normal mode
+  TCCR2B = 0x07; // set 1024 prescaler
+  TIMSK2 = (1 << TOIE2); // enable Timer Overflow Interrupt flag
+  
+  interrupts(); // turn interrupts on
 
   leftMotor.run(Motor::MotorForward);
   rightMotor.run(Motor::MotorForward);  
@@ -169,13 +195,8 @@ void setup()
 }
 
 
-// exercise motors by running through directions: 
-//	- forward, left, revese, right, stop
-//  - delay between each
-//  - increase speed of both motors
-
-const int DELAY = 7000;
 bool auto_mode = true;
+int btn; // should be enum
 
 // automatic and manual mode
 /*
@@ -209,51 +230,263 @@ void loop()
 {
 
 // getting the mode
-  if(IrReceiver.decode()){
-    if(IrReceiver.decodedIRData.command == change){
-      auto_mode = (auto_mode == true) ? false : true; 
-      // stop robot for a second
-       leftMotor.run(MotorStop);
-       rightMotor.run(MotorStop);
-       delay(1200);
-    }
-    IrReceiver.resume();
-  }
+//  if(IrReceiver.decode()){
+//    if(IrReceiver.decodedIRData.command == change){
+//      auto_mode = (auto_mode == true) ? false : true; 
+//      // stop robot for a second
+//       leftMotor.run(MotorStop);
+//       rightMotor.run(MotorStop);
+//       delay(1200);
+//    }
+//    IrReceiver.resume();
+//  }
 
 
 // leftMotor.run(MotorStop);
 // rightMotor.run(MotorStop);
 
 if(auto_mode){// then we are in auto_mode
-
-
+  switch(state) {
+    case MoveForward:
+      moveForward();
+      break;
+    case TurnLeft:
+      turnLeft();
+      break;
+    case TurnRight:
+      turnRight();
+      break;
+    case CorrectLeft:
+      correctLeft();
+      break;
+    case CorrectRight:
+      correctRight();
+      break;
+    case Reverse:
+      reverse();
+      break;
+    case Stop:
+      stop();
+      break;
+  }
 
 }else{
 
 
     switch(btn){
 
-      case forward: 
-        leftMotor.run(MotorForward);
-        rightMotor.run(MotorForward);
+//      case forward: 
+//        leftMotor.run(Motor::MotorForward);
+//        rightMotor.run(Motor::MotorForward);
 
     }
 
 
 
 }
+}
 
-  servo.write(90);
-  double measurement = sensor.measureInches();
-    Serial.println(measurement);
-  if(measurement <= 5)
+byte currentAngle;
+byte left; // left measurement
+byte forward; // forward measurement
+
+const byte WALL_DISTANCE = 6; // should always be 6 inches from wall
+const byte RANGE = 1; // can be + or - 1 inch from WALL_DISTANCE
+const byte COURSE_WIDTH = 28;
+
+byte forward_count = 0;
+byte left_count = 0;
+byte right_count = 0;
+// count variables increment for consecutive times where
+// forward/left/right is < safe value
+// put in reverse when count is high enough
+
+float scan_time = 1.5;
+
+// timer interrupt occurs every 0.01s
+// decrement time variables to have 
+ISR(TIMER2_OVF_vect) {
+  if(scan_time < 0.01) // bring back to 1.5 s when 0
   {
-	speed = 10;
-    leftMotor.run(Motor::MotorReverse);
-    rightMotor.run(Motor::MotorForward);
-    while(sensor.measureInches() < 10); 
-    leftMotor.run(Motor::MotorForward);
-    rightMotor.run(Motor::MotorForward);
-    speed = 50; 
+    Serial.println("hi");
+    scan_time = 1.5; // actually runs every ~2.5 seconds
+    scan();
   }
+
+  scan_time = scan_time - 0.01;
+}
+
+void scan() {
+  currentAngle = servo.read();
+  //Serial.println(currentAngle);
+  if(currentAngle == 90)
+  { // if sensor is currently facing forward,
+    // scan forward then turn left and scan
+    forward = sensor.measureInches();
+    servo.write(180);
+    delay(625); // wait for servo to turn
+    left = sensor.measureInches();
+  }
+  else
+  { // if sensor is currently facing left,
+    // scan left then turn forward and scan
+    left = sensor.measureInches();
+    servo.write(90);
+    delay(625); // wait for servo to turn
+    forward = sensor.measureInches();
+  }
+
+  if(forward < 12) // forward < 12 inches
+  {
+    forward_count++;
+    if(forward_count > 2) state = Reverse;
+    // ^ put robot in reverse if it is stuck
+    else if(left < COURSE_WIDTH) state = TurnRight;
+    // ^ if approaching forward wall and left wall exists,
+    // turn right
+    else state = TurnLeft;
+    // ^ if approaching forward wall and no close left wall,
+    // turn left
+  }
+
+  else if(left < WALL_DISTANCE - RANGE)
+  {
+    left_count++;
+    if(left_count > 2) state = Reverse;
+    // ^ put robot in reverse if it is stuck
+    else state = CorrectRight;
+    // if too close to left wall, correct to right
+  }
+
+  else if(left > WALL_DISTANCE + RANGE)
+  {
+    right_count++;
+    if(right_count > 2) state = Reverse;
+    // ^ put robot in reverse if it is stuck
+    else state = CorrectLeft;
+    // if too far from left wall, correct to left
+  }
+
+  else if((left > COURSE_WIDTH && forward > COURSE_WIDTH) ||
+          (left == 0 && forward == 0))
+  {
+    state = Stop;
+    // ^ stop if both left and forward
+    // are greater than the course width
+    // or if both are too far (returns 0)
+  }
+
+  else state = MoveForward;
+}
+
+void turnLeft() {
+  speed = 95; // slow down when turning
+  leftMotor.setSpeed(speed);
+  rightMotor.setSpeed(speed);
+
+  leftMotor.run(Motor::MotorReverse);
+  rightMotor.run(Motor::MotorForward);
+  // ^ set motors to turn left
+  delay(500); // wait half a second
+  state = MoveForward; // return to forward
+}
+
+void turnRight() {
+  speed = 95; // slow down when turning
+  leftMotor.setSpeed(speed);
+  rightMotor.setSpeed(speed);
+
+  leftMotor.run(Motor::MotorForward);
+  rightMotor.run(Motor::MotorReverse);
+  // ^ set motors to turn right
+  delay(500); // wait half a second
+
+  state = MoveForward; // return to forward
+}
+
+void correctLeft() {
+  speed = 95; // slow down when correcting
+  leftMotor.setSpeed(speed);
+  rightMotor.setSpeed(speed);
+
+  leftMotor.run(Motor::MotorReverse);
+  rightMotor.run(Motor::MotorForward);
+  // ^ set motors to turn left
+  delay(300); // wait 300 ms
+
+  leftMotor.run(Motor::MotorForward);
+  rightMotor.run(Motor::MotorForward);
+  delay(100); // move forward for 100 ms
+
+  leftMotor.run(Motor::MotorForward);
+  rightMotor.run(Motor::MotorReverse);
+  // ^ set motors to turn right
+  // in order to straighten out
+  delay(100); // wait 100 ms
+
+  state = MoveForward; // return to forward
+}
+void correctRight() {
+  speed = 95; // slow down when correcting
+  leftMotor.setSpeed(speed);
+  rightMotor.setSpeed(speed);
+
+  leftMotor.run(Motor::MotorForward);
+  rightMotor.run(Motor::MotorReverse);
+  // ^ set motors to turn right
+  delay(300); // wait 300 ms
+
+  leftMotor.run(Motor::MotorForward);
+  rightMotor.run(Motor::MotorForward);
+  delay(100); // move forward for 100 ms
+
+  leftMotor.run(Motor::MotorReverse);
+  rightMotor.run(Motor::MotorForward);
+  // ^ set motors to turn left
+  // in order to straighten out
+  delay(100); // wait 100 ms
+
+  state = MoveForward; // return to forward
+}
+
+void moveForward() {
+  speed = 95; 
+  leftMotor.setSpeed(speed);
+  rightMotor.setSpeed(speed);
+
+  leftMotor.run(Motor::MotorForward);
+  rightMotor.run(Motor::MotorForward);
+  // ^ return speed to 100 if slowed by a turn
+
+  forward_count = 0;
+  left_count = 0;
+  right_count = 0;
+  // clear counts, robot is not stuck
+}
+
+void reverse() {
+  speed = 255;
+  leftMotor.setSpeed(speed);
+  rightMotor.setSpeed(speed);
+
+  leftMotor.run(Motor::MotorReverse);
+  rightMotor.run(Motor::MotorForward);
+
+  delay(300);
+
+  leftMotor.run(Motor::MotorReverse);
+  rightMotor.run(Motor::MotorReverse);
+
+  delay(1500);
+
+  leftMotor.run(Motor::MotorForward);
+  rightMotor.run(Motor::MotorReverse);
+  delay(300);
+
+  state = MoveForward; // return to forward
+}
+
+void stop() {
+  leftMotor.run(Motor::MotorStop);
+  rightMotor.run(Motor::MotorStop);
 }
