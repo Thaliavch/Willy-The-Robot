@@ -6,10 +6,12 @@
 #include <Servo.h>
 #include <IRremote.h>
 
+// pins of left motor
 const int H1A = 4;
 const int H2A = 7;
 const int H12EN = 5;
 
+// pins of right motor
 const int H3A = 8;
 const int H4A = 2;
 const int H34EN = 6;
