@@ -1,7 +1,7 @@
 // By: Ryan Boyle and Thalia Valle Chavez
 // Desc: Write a program to control a robot using different states.
 // The robot has an ATMega328p IC, DC Motor, Ultrasonic Sensor, 
-// and Servo Motor.
+// and Servo Motor. 
 // ------------------------------------------------------------
 #include <Servo.h>
 #include <IRremote.h>
