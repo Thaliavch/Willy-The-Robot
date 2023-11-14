@@ -33,6 +33,11 @@ const int TM2_COUNT = 0x64;
   AutoState state; 
 
   byte forward_count = 0;
+<<<<<<< HEAD
+=======
+  byte left_count = 0;
+  byte right_count = 0;
+>>>>>>> 36659f5823ddb99201be35c102bb93f8a2bdf200
 // count variables increment for consecutive times where
 // forward/left/right is < safe value
 // put in reverse when count is high enough
@@ -381,7 +386,11 @@ class RemoteControl{
 
 // declare 2 Motor variables
 Motor leftMotor(H2A,H1A,H12EN);
+<<<<<<< HEAD
 Motor rightMotor(H4A,H3A,H34EN);
+=======
+Motor rightMotor(H3A,H4A,H34EN);
+>>>>>>> 36659f5823ddb99201be35c102bb93f8a2bdf200
 
 Wheels wheels(leftMotor, rightMotor, SPEED);
 
@@ -461,7 +470,10 @@ void setup()
 
 // create switch statmement using the enums
 
+<<<<<<< HEAD
 /*
+=======
+>>>>>>> 36659f5823ddb99201be35c102bb93f8a2bdf200
 // main application
 void loop()
 {
@@ -472,8 +484,12 @@ void loop()
   }
   
 }
+<<<<<<< HEAD
 */
 
+=======
+/*
+>>>>>>> 36659f5823ddb99201be35c102bb93f8a2bdf200
 // have a switch method to stop when change happens.
 void loop()
 {
@@ -485,6 +501,7 @@ void loop()
 if(is_auto_mode){// then we are in auto_mode
   switch(state) {
     case MoveForward:
+<<<<<<< HEAD
       wheels.moveForward();
       break;
     case TurnLeft:
@@ -504,6 +521,27 @@ if(is_auto_mode){// then we are in auto_mode
       break;
     case Stop:
       wheels.stop();
+=======
+      moveForward();
+      break;
+    case TurnLeft:
+      turnLeft();
+      break;
+    case TurnRight:
+      turnRight();
+      break;
+    case CorrectLeft:
+      correctLeft();
+      break;
+    case CorrectRight:
+      correctRight();
+      break;
+    case Reverse:
+      reverse();
+      break;
+    case Stop:
+      stop();
+>>>>>>> 36659f5823ddb99201be35c102bb93f8a2bdf200
       break;
   }
 
@@ -516,7 +554,11 @@ if(is_auto_mode){// then we are in auto_mode
 
 
 }
+<<<<<<< HEAD
 
+=======
+*/
+>>>>>>> 36659f5823ddb99201be35c102bb93f8a2bdf200
 
 byte currentAngle;
 byte left; // left measurement
@@ -572,8 +614,13 @@ void scan() {
   if(forward < 12) // forward < 12 inches
   {
     forward_count++;
+<<<<<<< HEAD
     if(forward_count > 2 || forward < 3) state = Reverse;
     // ^ put robot in reverse if it is stuck or close to wall
+=======
+    if(forward_count > 2) state = Reverse;
+    // ^ put robot in reverse if it is stuck
+>>>>>>> 36659f5823ddb99201be35c102bb93f8a2bdf200
     else if(left < COURSE_WIDTH) state = TurnRight;
     // ^ if approaching forward wall and left wall exists,
     // turn right
@@ -584,17 +631,31 @@ void scan() {
 
   else if(left < WALL_DISTANCE - RANGE)
   {
+<<<<<<< HEAD
     forward_count = 0;
     // ^ should not be stuck in forward direction
     state = CorrectRight;
+=======
+    left_count++;
+    if(left_count > 2) state = Reverse;
+    // ^ put robot in reverse if it is stuck
+    else state = CorrectRight;
+>>>>>>> 36659f5823ddb99201be35c102bb93f8a2bdf200
     // if too close to left wall, correct to right
   }
 
   else if(left > WALL_DISTANCE + RANGE)
   {
+<<<<<<< HEAD
     forward_count = 0;
     // ^ should not be stuck in forward direction
     state = CorrectLeft;
+=======
+    right_count++;
+    if(right_count > 2) state = Reverse;
+    // ^ put robot in reverse if it is stuck
+    else state = CorrectLeft;
+>>>>>>> 36659f5823ddb99201be35c102bb93f8a2bdf200
     // if too far from left wall, correct to left
   }
 
@@ -607,11 +668,15 @@ void scan() {
     // or if both are too far (returns 0)
   }
 
+<<<<<<< HEAD
   else 
   {
     forward_count = 0; // not stuck
     state = MoveForward;
   }
+=======
+  else state = MoveForward;
+>>>>>>> 36659f5823ddb99201be35c102bb93f8a2bdf200
 }
 
 
