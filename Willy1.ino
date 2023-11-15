@@ -7,13 +7,13 @@
 #include <IRremote.h>
 
 // pins of left motor
-const int H1A = 4;
-const int H2A = 7;
+const int H1A = 7;
+const int H2A = 4;
 const int H12EN = 5;
 
 // pins of right motor
-const int H3A = 8;
-const int H4A = 2;
+const int H3A = 2;
+const int H4A = 8;
 const int H34EN = 6;
 
 const int IR_RECEIVE_PIN = 13;// have to check for pin in robot
@@ -193,7 +193,7 @@ void turnLeft() {
   leftMotor.run(Motor::MotorReverse);
   rightMotor.run(Motor::MotorForward);
   // ^ set motors to turn left
-  delay(500); // wait half a second
+  delay(125); // wait an eighth of a second
   state = MoveForward; // return to forward
 }
 
@@ -205,8 +205,7 @@ void turnRight() {
   leftMotor.run(Motor::MotorForward);
   rightMotor.run(Motor::MotorReverse);
   // ^ set motors to turn right
-  delay(500); // wait half a second
-
+  delay(125); // wait an eighth of a second
   state = MoveForward; // return to forward
 }
 
@@ -218,17 +217,17 @@ void correctLeft() {
   leftMotor.run(Motor::MotorReverse);
   rightMotor.run(Motor::MotorForward);
   // ^ set motors to turn left
-  delay(300); // wait 300 ms
+  delay(50); // wait 50 ms
 
   leftMotor.run(Motor::MotorForward);
   rightMotor.run(Motor::MotorForward);
-  delay(100); // move forward for 100 ms
+  delay(75); // move forward for 75 ms
 
   leftMotor.run(Motor::MotorForward);
   rightMotor.run(Motor::MotorReverse);
   // ^ set motors to turn right
   // in order to straighten out
-  delay(100); // wait 100 ms
+  delay(60); // wait 60 ms
 
   state = MoveForward; // return to forward
 }
@@ -240,17 +239,17 @@ void correctRight() {
   leftMotor.run(Motor::MotorForward);
   rightMotor.run(Motor::MotorReverse);
   // ^ set motors to turn right
-  delay(300); // wait 300 ms
+  delay(50); // wait 50 ms
 
   leftMotor.run(Motor::MotorForward);
   rightMotor.run(Motor::MotorForward);
-  delay(100); // move forward for 100 ms
+  delay(75); // move forward for 75 ms
 
   leftMotor.run(Motor::MotorReverse);
   rightMotor.run(Motor::MotorForward);
   // ^ set motors to turn left
   // in order to straighten out
-  delay(100); // wait 100 ms
+  delay(60); // wait 60 ms
 
   state = MoveForward; // return to forward
 }
@@ -262,7 +261,7 @@ void moveForward() {
 
   leftMotor.run(Motor::MotorForward);
   rightMotor.run(Motor::MotorForward);
-  // ^ return speed to 100 if slowed by a turn
+  // ^ return speed to 95 if slowed by a turn
 }
 
 void reverse() {
@@ -272,16 +271,17 @@ void reverse() {
 
   leftMotor.run(Motor::MotorReverse);
   rightMotor.run(Motor::MotorForward);
-
+  // ^ reposition
   delay(300);
 
   leftMotor.run(Motor::MotorReverse);
   rightMotor.run(Motor::MotorReverse);
-
+  // ^ reverse
   delay(1500);
 
   leftMotor.run(Motor::MotorForward);
   rightMotor.run(Motor::MotorReverse);
+  // ^ reposition
   delay(300);
 
   state = MoveForward; // return to forward
@@ -380,8 +380,8 @@ class RemoteControl{
 
 
 // declare 2 Motor variables
-Motor leftMotor(H2A,H1A,H12EN);
-Motor rightMotor(H4A,H3A,H34EN);
+Motor leftMotor(H1A,H2A,H12EN);
+Motor rightMotor(H3A,H4A,H34EN);
 
 Wheels wheels(leftMotor, rightMotor, SPEED);
 
@@ -405,7 +405,7 @@ void turnRight();
 void correctLeft();
 void correctRight();*/
 // ^ functions to call when in corresponding state
-/*
+
 void setup()
 {
   Serial.begin(9600);
@@ -441,12 +441,13 @@ void setup()
   // ^ start off by moving forward
 }
 
-*/
+
 //***********************************************************************
 //int btn; // should be enum
 
 // automatic and manual mode
 
+/*
 void setup()
 {
   Serial.begin(9600);
@@ -458,6 +459,7 @@ void setup()
   
   
 }
+*/
 
 // create switch statmement using the enums
 
@@ -519,7 +521,8 @@ if(is_auto_mode){// then we are in auto_mode
 
 
 byte currentAngle;
-byte left; // left measurement
+byte left; // first left measurement
+byte left2; // second left measurement
 byte forward; // forward measurement
 
 const byte WALL_DISTANCE = 6; // should always be 6 inches from wall
@@ -559,11 +562,15 @@ void scan() {
     servo.write(180);
     delay(625); // wait for servo to turn
     left = sensor.measureInches();
+    delay(625); // wait to measure left again
+    left2 = sensor.measureInches();
   }
   else
   { // if sensor is currently facing left,
     // scan left then turn forward and scan
     left = sensor.measureInches();
+    delay(625); // wait to measure left again
+    left2 = sensor.measureInches();
     servo.write(90);
     delay(625); // wait for servo to turn
     forward = sensor.measureInches();
@@ -571,12 +578,18 @@ void scan() {
 
   if(forward < 12) // forward < 12 inches
   {
-    forward_count++;
-    if(forward_count > 2 || forward < 3) state = Reverse;
-    // ^ put robot in reverse if it is stuck or close to wall
-    else if(left < COURSE_WIDTH) state = TurnRight;
-    // ^ if approaching forward wall and left wall exists,
-    // turn right
+    if(forward <= 2) forward_count++;
+    if(forward_count > 3) state = Reverse;
+    // ^ put robot in reverse if it is stuck/close to wall
+    else if(left < COURSE_WIDTH) 
+    {
+      if(left2 - left < -3) state = CorrectRight;
+      // ^ if rapidly approaching left wall, correct right
+      else if(left2 - left > 3) state = CorrectLeft;
+      // ^ if rapidly approaching right wall, correct left
+      else state = TurnRight;
+      // otherwise turn right since forward and left are both close
+    }
     else state = TurnLeft;
     // ^ if approaching forward wall and no close left wall,
     // turn left
